@@ -1,7 +1,10 @@
 package io.openmessaging;
 
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -11,16 +14,17 @@ public class Segment {
     private static final int BUFFER_CAPCITY_BYTE = 200 * 50;
     private final ReentrantLock lock = new ReentrantLock();
 
-    public ConcurrentHashMap<String, List<IndexChunk>> subIndex;
+    public ConcurrentHashMap<String, Index> subIndexTable;
     public ByteBuffer buffer;
     private String tailQueueName = null;
+    public long lastAppendTimestampInMs;
 
     // the perf can be roughly measured by percentage of continousMessageCount / messageCount, from 0% ~ 100%
     volatile private int messageCount = 0;
     volatile private int continousMessageCount = 0;
 
     public Segment() {
-        subIndex = new ConcurrentHashMap<>();
+        subIndexTable = new ConcurrentHashMap<>();
         buffer = ByteBuffer.allocateDirect(BUFFER_CAPCITY_BYTE);
     }
 
@@ -36,27 +40,32 @@ public class Segment {
         return this.buffer.remaining() < remain;
     }
 
+    public boolean IsEmpty() {
+        return this.buffer.position() == 0;
+    }
+
     public boolean Append(String queueName, byte[] body) {
 
-        if (buffer.remaining() >= body.length) {
+        if (buffer.remaining() >= body.length + 2) {
+            lastAppendTimestampInMs = System.currentTimeMillis();
             messageCount++;
             int currentLocalOffset = buffer.position();
+            buffer.putShort((short) body.length);
             buffer.put(body);
 
             // update local index
-            List<IndexChunk> indexChunkList = subIndex.get(queueName);
-            if (indexChunkList == null) {
-                subIndex.put(queueName, indexChunkList);
+            Index index = subIndexTable.get(queueName);
+            if (index == null) {
+                index = new Index();
+                subIndexTable.put(queueName, index);
             }
 
             if (tailQueueName == null || !tailQueueName.equals(queueName)) {
                 tailQueueName = queueName;
-                indexChunkList.add(new IndexChunk(currentLocalOffset, body.length, 1));
+                index.AddNewChunk(currentLocalOffset);
             } else {
                 continousMessageCount++;
-                IndexChunk lastChunk = indexChunkList.get(indexChunkList.size() - 1);
-                lastChunk.MessageNumber++;
-                lastChunk.Length += body.length;
+                index.UpdateChunk();
             }
 
             return true;
@@ -67,7 +76,22 @@ public class Segment {
 
     public void Reset() {
         buffer.clear();
-        subIndex = new ConcurrentHashMap<>();
         tailQueueName = null;
+    }
+
+    public void MergeIndex(int globalStartOffset) {
+        for (Map.Entry<String, Index> entry : subIndexTable.entrySet()) {
+            entry.getValue().Merge(globalStartOffset);
+        }
+    }
+
+    public Object[] Lookup(String queueName, int offset, int num) {
+        Index index = this.subIndexTable.get(queueName);
+        if (index == null) {
+            throw new IllegalArgumentException("Queuename doesn't exist in local index table , queue: " + queueName);
+        }
+
+        return index.Lookup(offset, num);
+
     }
 }

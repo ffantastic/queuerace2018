@@ -5,8 +5,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -17,18 +15,12 @@ public class MessageWriter {
     private RandomAccessFile raf;
     private FileChannel outChannel;
 
-    private static final int BUFFER_SIZE = 15 * 1024 * 1024;
-    private List<ByteBuffer> buffer;
-    private int size;
-
-    private final Lock writeLock = new ReentrantLock();
-    private static final Lock flushLock = new ReentrantLock();
+    private final Lock flushLock = new ReentrantLock();
+    private static final Lock flushLockGlobal = new ReentrantLock();
 
     public MessageWriter(String fileName) throws IOException {
         this.filename = fileName;
         this.pos = 0;
-        this.size = 0;
-        this.buffer = new ArrayList<>();
 
         File file = new File(fileName);
         if (file.exists()) {
@@ -44,35 +36,27 @@ public class MessageWriter {
         int originalPos = pos;
         ByteBuffer byteBuffer = seg.buffer;
 
-        writeLock.lock();
+        flushLockGlobal.lock();
         try {
             byteBuffer.flip();
             pos += byteBuffer.limit();
-            size += byteBuffer.limit();
-            buffer.add(byteBuffer);
-            if (size >= BUFFER_SIZE) {
-                this.Flush();
+            while (byteBuffer.hasRemaining()) {
+                this.outChannel.write(byteBuffer);
             }
+        } catch (Exception ex) {
+            ex.printStackTrace();
         } finally {
-            writeLock.unlock();
+            flushLockGlobal.unlock();
         }
         return originalPos;
     }
 
-    private void Flush() {
-        flushLock.lock();
+    public void CloseChannel() {
+        System.out.println("close writer for " + this.filename);
         try {
-            for (ByteBuffer byteBuffer : buffer) {
-                while (byteBuffer.hasRemaining()) {
-                    this.outChannel.write(byteBuffer);
-                }
-            }
-            //release buffer
-            buffer = new ArrayList<>();
-        } catch (Exception e) {
+            this.outChannel.close();
+        } catch (IOException e) {
             e.printStackTrace();
-        } finally {
-            flushLock.unlock();
         }
     }
 }
