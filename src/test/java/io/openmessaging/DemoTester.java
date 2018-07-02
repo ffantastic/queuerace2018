@@ -21,13 +21,13 @@ public class DemoTester {
         //消费阶段的最大持续时间，也即在该时间内，如果消息依然没有消费完毕，则退出评测
         int checkTime = 10 * 60 * 1000;
         //队列的数量
-        int queueNum = 1000;
+        int queueNum = 200;// 1000;
         //正确性检测的次数
         int checkNum = 1000;
         //消费阶段的总队列数量
         int checkQueueNum = 100;
         //发送的线程数量
-        int sendTsNum = 1;
+        int sendTsNum = 10;
         //消费的线程数量
         int checkTsNum = 1;
 
@@ -68,13 +68,13 @@ public class DemoTester {
         long indexCheckStart = System.currentTimeMillis();
         AtomicLong indexCheckCounter = new AtomicLong(0);
         Thread[] indexChecks = new Thread[checkTsNum];
-        for (int i = 0; i < sendTsNum; i++) {
+        for (int i = 0; i < checkTsNum; i++) {
             indexChecks[i] = new Thread(new IndexChecker(queueStore, i, maxCheckTime, checkNum, indexCheckCounter, queueNumMap));
         }
-        for (int i = 0; i < sendTsNum; i++) {
+        for (int i = 0; i < checkTsNum; i++) {
             indexChecks[i].start();
         }
-        for (int i = 0; i < sendTsNum; i++) {
+        for (int i = 0; i < checkTsNum; i++) {
             indexChecks[i].join();
         }
         long indexCheckEnd = System.currentTimeMillis();
@@ -85,7 +85,7 @@ public class DemoTester {
         Random random = new Random();
         AtomicLong checkCounter = new AtomicLong(0);
         Thread[] checks = new Thread[checkTsNum];
-        for (int i = 0; i < sendTsNum; i++) {
+        for (int i = 0; i < checkTsNum; i++) {
             int eachCheckQueueNum = checkQueueNum/checkTsNum;
             ConcurrentMap<String, AtomicInteger> offsets = new ConcurrentHashMap<>();
             for (int j = 0; j < eachCheckQueueNum; j++) {
@@ -97,10 +97,10 @@ public class DemoTester {
             }
             checks[i] = new Thread(new Consumer(queueStore, i, maxCheckTime, checkCounter, offsets));
         }
-        for (int i = 0; i < sendTsNum; i++) {
+        for (int i = 0; i < checkTsNum; i++) {
             checks[i].start();
         }
-        for (int i = 0; i < sendTsNum; i++) {
+        for (int i = 0; i < checkTsNum; i++) {
             checks[i].join();
         }
         long checkEnd = System.currentTimeMillis();
@@ -172,6 +172,7 @@ public class DemoTester {
                     for (byte[] msg : msgs) {
                         if (!new String(msg).equals(String.valueOf(index++))) {
                             System.out.println("Check error");
+                            //queueStore.get(queueName, index-1, 10);
                             System.exit(-1);
                         }
                     }

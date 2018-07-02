@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class DefaultQueueStoreImpl extends QueueStore {
     // 1 bucket = 1 file, including many queues with the same hashing value remaining with BUCKET_NUM
-    private static final int BUCKET_NUM = 200;
+    private static final int BUCKET_NUM = 1;
     private final ConcurrentHashMap<Integer, Bucket> bucketMap = new ConcurrentHashMap<>();
     private final ExecutorService threadPool = Executors.newSingleThreadExecutor();
     private static final long EXPIRY_TIMESPANE_IN_MS = 1 * 60 * 1000;

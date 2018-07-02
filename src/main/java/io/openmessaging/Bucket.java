@@ -13,7 +13,7 @@ public class Bucket {
     private CacheManager cacheManager;
     private MessageWriter messageWriter;
     private MessageReader messageReader;
-    private static final String DATA_ROOT_PATH = "/alidata1/race2018/data/";//"C:/Users/wenfan/Desktop/aliTest/";//
+    private static final String DATA_ROOT_PATH = "/alidata1/race2018/data/";//"C:/Users/wenfan/Desktop/aliTest/";
 
     public Bucket(int number) throws IOException {
         bucketName = "bucket-" + number;
@@ -55,11 +55,10 @@ public class Bucket {
         for (Segment seg : segs) {
             seg.Lock();
             try {
-                if (seg.IsEmpty()) {
-                    continue;
+                if (!seg.IsEmpty()) {
+                    flushedNumber++;
+                    FlushCache(seg);
                 }
-                flushedNumber++;
-                FlushCache(seg);
             } catch (Exception ex) {
                 ex.printStackTrace();
             } finally {
