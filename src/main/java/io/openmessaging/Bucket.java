@@ -13,7 +13,7 @@ public class Bucket {
     private CacheManager cacheManager;
     private MessageWriter messageWriter;
     private MessageReader messageReader;
-    private static final String DATA_ROOT_PATH = "C:/Users/wenfan/Desktop/aliTest/";//"/alidata1/race2018/data/";
+    private static final String DATA_ROOT_PATH = "/alidata1/race2018/data/";//"C:/Users/wenfan/Desktop/aliTest/";//
 
     public Bucket(int number) throws IOException {
         bucketName = "bucket-" + number;
