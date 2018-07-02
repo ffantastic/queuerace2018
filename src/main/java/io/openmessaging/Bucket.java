@@ -4,6 +4,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -12,13 +13,14 @@ public class Bucket {
     private CacheManager cacheManager;
     private MessageWriter messageWriter;
     private MessageReader messageReader;
-    private static final String DATA_ROOT_PATH = "/alidata1/race2018/data/";
+    private static final String DATA_ROOT_PATH = "C:/Users/wenfan/Desktop/aliTest/";//"/alidata1/race2018/data/";
 
     public Bucket(int number) throws IOException {
         bucketName = "bucket-" + number;
         System.out.println("Initializing Bucket " + bucketName);
         cacheManager = new CacheManager();
         messageWriter = new MessageWriter(DATA_ROOT_PATH + bucketName);
+        messageReader = new MessageReader(DATA_ROOT_PATH + bucketName);
     }
 
     public void Put(String queueName, byte[] body) {
@@ -69,7 +71,7 @@ public class Bucket {
     }
 
     public void ReleaseWriteResource() {
-        List<Segment> segs = cacheManager.GetCaches(false, 0);
+        List<Segment> segs = cacheManager.GetCaches(true, -1);
         for (Segment seg : segs) {
             seg.buffer = null;
         }
@@ -87,6 +89,10 @@ public class Bucket {
     public Collection<byte[]> Get(String queueName, long offset, int num) {
         Segment seg = this.cacheManager.GetCache(queueName);
         Object[] result = seg.Lookup(queueName, (int) offset, num);
+        if (result == null) {
+            return new ArrayList<>();
+        }
+
         return this.messageReader.ReadMessage((int) result[0], (List<IndexChunk>) result[1], num);
     }
 

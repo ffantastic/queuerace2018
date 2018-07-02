@@ -27,9 +27,9 @@ public class DemoTester {
         //消费阶段的总队列数量
         int checkQueueNum = 100;
         //发送的线程数量
-        int sendTsNum = 10;
+        int sendTsNum = 1;
         //消费的线程数量
-        int checkTsNum = 10;
+        int checkTsNum = 1;
 
         ConcurrentMap<String, AtomicInteger> queueNumMap = new ConcurrentHashMap<>();
         for (int i = 0; i < queueNum; i++) {

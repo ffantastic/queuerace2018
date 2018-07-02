@@ -51,7 +51,7 @@ public class DefaultQueueStoreImpl extends QueueStore {
                             }
                         }
 
-                        int finalFlushedNum = this.CleanupExpiry(0, true);
+                        int finalFlushedNum = this.CleanupExpiry(-1, true);
                         isAllCacheFlushed = true;
                         System.out.println("Final flushed " + finalFlushedNum + ", cleaning up exit.");
                     });

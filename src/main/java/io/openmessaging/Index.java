@@ -35,7 +35,7 @@ public class Index {
         for (; i < chunkList.size(); i++) {
             curMessageIndex += chunkList.get(i).MessageNumber;
             if (curMessageIndex >= start) {
-                messageSkippedInFisrtChunk = curMessageIndex - start;
+                messageSkippedInFisrtChunk = chunkList.get(i).MessageNumber - curMessageIndex + start - 1;
                 break;
             }
         }
@@ -49,11 +49,12 @@ public class Index {
         int readNum = chunkList.get(i).MessageNumber - messageSkippedInFisrtChunk;
         i++;
         for (; i < chunkList.size(); i++) {
-            result.add(chunkList.get(i));
-            readNum += chunkList.get(i).MessageNumber;
             if (readNum >= num) {
                 break;
             }
+
+            result.add(chunkList.get(i));
+            readNum += chunkList.get(i).MessageNumber;
         }
 
         Object[] aus = new Object[2];
