@@ -21,7 +21,7 @@ public class DemoTester {
         //消费阶段的最大持续时间，也即在该时间内，如果消息依然没有消费完毕，则退出评测
         int checkTime = 10 * 60 * 1000;
         //队列的数量
-        int queueNum = 200;// 1000;
+        int queueNum =  1000;
         //正确性检测的次数
         int checkNum = 1000;
         //消费阶段的总队列数量
@@ -29,7 +29,7 @@ public class DemoTester {
         //发送的线程数量
         int sendTsNum = 10;
         //消费的线程数量
-        int checkTsNum = 1;
+        int checkTsNum = 10;
 
         ConcurrentMap<String, AtomicInteger> queueNumMap = new ConcurrentHashMap<>();
         for (int i = 0; i < queueNum; i++) {

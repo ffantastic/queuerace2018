@@ -33,10 +33,9 @@ public class MessageWriter {
     }
 
     public int Write(Segment seg) {
+        flushLockGlobal.lock();
         int originalPos = pos;
         ByteBuffer byteBuffer = seg.buffer;
-
-        flushLockGlobal.lock();
         try {
             byteBuffer.flip();
             pos += byteBuffer.limit();

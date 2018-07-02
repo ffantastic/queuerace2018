@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CacheManager {
     // try to seperate different queue messages to different message
     // if messages from same queue are actually clustered by time very well, the SEG_NUM can be 1
-    private static final int SEG_NUM = 1;
+    private static final int SEG_NUM = 11;
     private final ConcurrentHashMap<Integer, Segment> cache = new ConcurrentHashMap<>();
 
     public CacheManager() {
