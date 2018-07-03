@@ -11,7 +11,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Segment {
     public static final int DEFAULT_BODY_SIZE_BYTE = 50 + 10;
     // average message number is about 2k/queue
-    private static final int BUFFER_CAPCITY_BYTE = 40000 * 50;
+    private static final int BUFFER_CAPCITY_BYTE = 260 * 50 * 1000;
     private final ReentrantLock lock = new ReentrantLock();
 
     public ConcurrentHashMap<String, Index> subIndexTable;
