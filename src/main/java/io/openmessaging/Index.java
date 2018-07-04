@@ -1,29 +1,42 @@
 package io.openmessaging;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Index {
-
-    private final List<Long> chunkList = new ArrayList<>();
+    private static final int CHAIN_LENGTH = 200;
+    private static final int CHAIN_SIZE = CHAIN_LENGTH * IndexChunk.CHUNK_SIZE;
+    private final List<byte[]> chunkList = new ArrayList<>();
+    private int currentWritePos = 0;
     private int mergedPos = -1;
 
+    public Index() {
+        this.AddNewChain();
+    }
 
     public void AddNewChunk(int currentLocalOffset) {
-        chunkList.add(IndexChunk.GetChunk(currentLocalOffset, 1));
+        if (currentWritePos >= CHAIN_SIZE) {
+            this.AddNewChain();
+        }
+
+        byte[] chain = chunkList.get(chunkList.size() - 1);
+        Bytes.int2bytes(currentLocalOffset, chain, currentWritePos);
+        Bytes.short2bytes((short) 1, chain, currentWritePos + 4);
+        currentWritePos += IndexChunk.CHUNK_SIZE;
     }
 
     public void UpdateChunk() {
-        Long lastChunk = chunkList.get(chunkList.size() - 1);
-        chunkList.set(chunkList.size() - 1, IndexChunk.AddMessage(lastChunk, 1));
+        int currentIndex = (chunkList.size() - 1) * CHAIN_LENGTH + currentWritePos / IndexChunk.CHUNK_SIZE - 1;
+        this.GetAndUpdateChunkNumber(currentIndex, 1, true);
     }
 
     public void Merge(int globalStartOffset) {
-        while (mergedPos + 1 < chunkList.size()) {
+        int totalChunkNumber = (chunkList.size() - 1) * CHAIN_LENGTH + currentWritePos / IndexChunk.CHUNK_SIZE;
+        while (mergedPos + 1 < totalChunkNumber) {
             mergedPos++;
-            long chunk = chunkList.get(mergedPos);
-            chunkList.set(mergedPos, IndexChunk.AddOffset(chunk, globalStartOffset));
+            this.GetAndUpdateChunkOffset(mergedPos, globalStartOffset, true);
         }
     }
 
@@ -33,8 +46,9 @@ public class Index {
         int messageSkippedInFisrtChunk = 0;
 
         int i = 0;
-        for (; i < chunkList.size(); i++) {
-            int messageNumber = IndexChunk.GetMessageNumber(chunkList.get(i));
+        int totalChunkNumber = (chunkList.size() - 1) * CHAIN_LENGTH + currentWritePos / IndexChunk.CHUNK_SIZE;
+        for (; i < totalChunkNumber; i++) {
+            int messageNumber = this.GetAndUpdateChunkNumber(i, 0, false);
             curMessageIndex += messageNumber;
             if (curMessageIndex >= start) {
                 messageSkippedInFisrtChunk = messageNumber - curMessageIndex + start - 1;
@@ -42,21 +56,25 @@ public class Index {
             }
         }
 
-        if (i == chunkList.size()) {
+        if (i == totalChunkNumber) {
             // not exist
             return null;
         }
 
-        result.add(new IndexChunk(chunkList.get(i)));
-        int readNum = IndexChunk.GetMessageNumber(chunkList.get(i)) - messageSkippedInFisrtChunk;
+        int currentChunkOffset = this.GetAndUpdateChunkOffset(i, 0, false);
+        int currentChunkNumber = this.GetAndUpdateChunkNumber(i, 0, false);
+        result.add(new IndexChunk(currentChunkNumber, currentChunkOffset));
+        int readNum = currentChunkNumber - messageSkippedInFisrtChunk;
         i++;
-        for (; i < chunkList.size(); i++) {
+        for (; i < totalChunkNumber; i++) {
             if (readNum >= num) {
                 break;
             }
 
-            result.add(new IndexChunk(chunkList.get(i)));
-            readNum += IndexChunk.GetMessageNumber(chunkList.get(i));
+            currentChunkOffset = this.GetAndUpdateChunkOffset(i, 0, false);
+            currentChunkNumber = this.GetAndUpdateChunkNumber(i, 0, false);
+            result.add(new IndexChunk(currentChunkNumber, currentChunkOffset));
+            readNum += currentChunkNumber;
         }
 
         Object[] aus = new Object[2];
@@ -64,37 +82,42 @@ public class Index {
         aus[1] = result;
         return aus;
     }
+
+    private void AddNewChain() {
+        byte[] chain = new byte[CHAIN_SIZE];
+        this.chunkList.add(chain);
+        currentWritePos = 0;
+    }
+
+    private int GetAndUpdateChunkOffset(int index, int increment, boolean isUpdate) {
+        int chain = index / CHAIN_LENGTH;
+        int pos = (index % CHAIN_LENGTH) * IndexChunk.CHUNK_SIZE;
+        int curValue = Bytes.bytes2int(chunkList.get(chain), pos);
+        if (isUpdate) {
+            Bytes.int2bytes(curValue + increment, chunkList.get(chain), pos);
+        }
+        return curValue;
+    }
+
+    private short GetAndUpdateChunkNumber(int index, int increment, boolean isUpdate) {
+        int chain = index / CHAIN_LENGTH;
+        int pos = (index % CHAIN_LENGTH) * IndexChunk.CHUNK_SIZE + 4;
+        short curValue = Bytes.bytes2Short(chunkList.get(chain), pos);
+        if (isUpdate) {
+            Bytes.short2bytes((short) (curValue + increment), chunkList.get(chain), pos);
+        }
+        return curValue;
+    }
 }
 
 class IndexChunk {
+    // offset(int) + length(short)
+    public static final int CHUNK_SIZE = 6;
     public int MessageNumber;
     public int Offset;
 
-    public IndexChunk(long chunk) {
-        this.MessageNumber = GetMessageNumber(chunk);
-        this.Offset = GetOffset(chunk);
-    }
-
-    public static int GetOffset(long chunk) {
-        return (int) (chunk >> 32);
-    }
-
-    public static int GetMessageNumber(long chunk) {
-        return (int) (chunk & 0x00000000ffffffff);
-    }
-
-    public static long GetChunk(int offset, int messageNumber) {
-        long off = offset;
-        off = off << 32;
-        off = off | messageNumber;
-        return off;
-    }
-
-    public static long AddMessage(long chunk, int num) {
-        return GetChunk(GetOffset(chunk), GetMessageNumber(chunk) + num);
-    }
-
-    public static long AddOffset(long chunk, int offsetDelta) {
-        return GetChunk(GetOffset(chunk) + offsetDelta, GetMessageNumber(chunk));
+    public IndexChunk(int msgNumber, int offset) {
+        this.MessageNumber = msgNumber;
+        this.Offset = offset;
     }
 }

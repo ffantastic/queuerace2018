@@ -22,6 +22,7 @@ public class Segment {
     // the perf can be roughly measured by percentage of continousMessageCount / messageCount, from 0% ~ 100%
     volatile private int messageCount = 0;
     volatile private int continousMessageCount = 0;
+    private long LastPrintLogTime = System.currentTimeMillis();
 
     public Segment() {
         subIndexTable = new ConcurrentHashMap<>();
@@ -64,10 +65,17 @@ public class Segment {
                 tailQueueName = queueName;
                 index.AddNewChunk(currentLocalOffset);
             } else {
-                continousMessageCount++;
+                if (tailQueueName != null) {
+                    continousMessageCount++;
+                }
                 index.UpdateChunk();
             }
 
+            // TODO for debug information every 3 minutes
+            if (System.currentTimeMillis() - LastPrintLogTime >= 3 * 60 * 1000) {
+                System.out.println("LastAppend " + new Timestamp(lastAppendTimestampInMs) + " total " + messageCount + " con " + continousMessageCount);
+                lastAppendTimestampInMs = System.currentTimeMillis();
+            }
             return true;
         }
 
