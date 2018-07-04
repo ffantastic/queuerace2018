@@ -37,9 +37,9 @@ public class DefaultQueueStoreImpl extends QueueStore {
                         while (isCleanupThreadRunning) {
                             try {
                                 int flushedNumber = this.CleanupExpiry(EXPIRY_TIMESPANE_IN_MS, false);
-                                if (flushedNumber < 10) {
-                                    Thread.sleep(1000);
-                                }
+                                // if (flushedNumber < 10) {
+                                Thread.sleep(10 * 1000);
+                                // }
                             } catch (InterruptedException ex) {
                                 if (!isCleanupThreadRunning) {
                                     System.out.println("stopping cleaning up job... ");

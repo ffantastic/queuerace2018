@@ -6,23 +6,24 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Index {
 
-    private final List<IndexChunk> chunkList = new ArrayList<>();
+    private final List<Long> chunkList = new ArrayList<>();
     private int mergedPos = -1;
 
 
     public void AddNewChunk(int currentLocalOffset) {
-        chunkList.add(new IndexChunk(currentLocalOffset, 1));
+        chunkList.add(IndexChunk.GetChunk(currentLocalOffset, 1));
     }
 
     public void UpdateChunk() {
-        IndexChunk lastChunk = chunkList.get(chunkList.size() - 1);
-        lastChunk.MessageNumber++;
+        Long lastChunk = chunkList.get(chunkList.size() - 1);
+        chunkList.set(chunkList.size() - 1, IndexChunk.AddMessage(lastChunk, 1));
     }
 
     public void Merge(int globalStartOffset) {
         while (mergedPos + 1 < chunkList.size()) {
             mergedPos++;
-            chunkList.get(mergedPos).Offset += globalStartOffset;
+            long chunk = chunkList.get(mergedPos);
+            chunkList.set(mergedPos, IndexChunk.AddOffset(chunk, globalStartOffset));
         }
     }
 
@@ -33,9 +34,10 @@ public class Index {
 
         int i = 0;
         for (; i < chunkList.size(); i++) {
-            curMessageIndex += chunkList.get(i).MessageNumber;
+            int messageNumber = IndexChunk.GetMessageNumber(chunkList.get(i));
+            curMessageIndex += messageNumber;
             if (curMessageIndex >= start) {
-                messageSkippedInFisrtChunk = chunkList.get(i).MessageNumber - curMessageIndex + start - 1;
+                messageSkippedInFisrtChunk = messageNumber - curMessageIndex + start - 1;
                 break;
             }
         }
@@ -45,16 +47,16 @@ public class Index {
             return null;
         }
 
-        result.add(chunkList.get(i));
-        int readNum = chunkList.get(i).MessageNumber - messageSkippedInFisrtChunk;
+        result.add(new IndexChunk(chunkList.get(i)));
+        int readNum = IndexChunk.GetMessageNumber(chunkList.get(i)) - messageSkippedInFisrtChunk;
         i++;
         for (; i < chunkList.size(); i++) {
             if (readNum >= num) {
                 break;
             }
 
-            result.add(chunkList.get(i));
-            readNum += chunkList.get(i).MessageNumber;
+            result.add(new IndexChunk(chunkList.get(i)));
+            readNum += IndexChunk.GetMessageNumber(chunkList.get(i));
         }
 
         Object[] aus = new Object[2];
@@ -65,11 +67,34 @@ public class Index {
 }
 
 class IndexChunk {
-    public int Offset;
     public int MessageNumber;
+    public int Offset;
 
-    public IndexChunk(int offset, int messageNumber) {
-        this.Offset = offset;
-        this.MessageNumber = messageNumber;
+    public IndexChunk(long chunk) {
+        this.MessageNumber = GetMessageNumber(chunk);
+        this.Offset = GetOffset(chunk);
+    }
+
+    public static int GetOffset(long chunk) {
+        return (int) (chunk >> 32);
+    }
+
+    public static int GetMessageNumber(long chunk) {
+        return (int) (chunk & 0x00000000ffffffff);
+    }
+
+    public static long GetChunk(int offset, int messageNumber) {
+        long off = offset;
+        off = off << 32;
+        off = off | messageNumber;
+        return off;
+    }
+
+    public static long AddMessage(long chunk, int num) {
+        return GetChunk(GetOffset(chunk), GetMessageNumber(chunk) + num);
+    }
+
+    public static long AddOffset(long chunk, int offsetDelta) {
+        return GetChunk(GetOffset(chunk) + offsetDelta, GetMessageNumber(chunk));
     }
 }
