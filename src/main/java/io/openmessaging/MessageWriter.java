@@ -18,11 +18,15 @@ public class MessageWriter {
     private final Lock flushLock = new ReentrantLock();
     private static final Lock flushLockGlobal = new ReentrantLock();
 
-    public MessageWriter(String fileName) throws IOException {
-        this.filename = fileName;
+    public MessageWriter(String filename) throws IOException {
+        this.OpenFile(filename);
+    }
+
+    public void OpenFile(String filename) throws IOException {
+        this.filename = filename;
         this.pos = 0;
 
-        File file = new File(fileName);
+        File file = new File(filename);
         if (file.exists()) {
             file.delete();
         }
@@ -32,10 +36,9 @@ public class MessageWriter {
         outChannel = raf.getChannel();
     }
 
-    public int Write(Segment seg) {
+    public int Write(ByteBuffer byteBuffer) {
         flushLockGlobal.lock();
         int originalPos = pos;
-        ByteBuffer byteBuffer = seg.buffer;
         try {
             byteBuffer.flip();
             pos += byteBuffer.limit();

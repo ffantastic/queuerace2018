@@ -30,6 +30,7 @@ public class MessageReader {
         } catch (FileNotFoundException e) {
             String errMsg = "Failed in openTopicFile. File " + fileName + " doesnot exist"
                     + e.getMessage();
+            System.out.println(errMsg);
         }
 
         try {
@@ -40,25 +41,21 @@ public class MessageReader {
         }
     }
 
-    public Collection<byte[]> ReadMessage(int messageSkippedInFirstChunk, List<IndexChunk> index, int limit) {
+    public Collection<byte[]> ReadMessage(int[] offsets) {
         readlock.lock();
         try {
             if (this.buf == null) {
                 this.openFile();
             }
 
-            Collection<byte[]> result = new ArrayList<>(limit);
-            int msgRead = 0;
-            for (int i = 0; i < index.size(); i++) {
-                int start = i == 0 ? messageSkippedInFirstChunk : 0;
-                int end = index.get(i).MessageNumber - 1;
-                if (i == index.size() - 1) {
-                    int limitInLastChunk = limit - msgRead;
-                    end = Math.min(end, start + limitInLastChunk - 1);
-                }
+            List<byte[]> result = new ArrayList<>(offsets.length);
 
-                this.ReadChunk(index.get(i), start, end, result);
-                msgRead = end - start + 1;
+            for (int i = 0; i < offsets.length; i++) {
+                this.buf.position(offsets[i]);
+                int len = this.buf.getShort();
+                byte[] data = new byte[len];
+                this.buf.get(data);
+                result.add(data);
             }
 
             return result;
@@ -71,28 +68,25 @@ public class MessageReader {
         return null;
     }
 
-    private void ReadChunk(IndexChunk indexChunk, int start, int end, Collection<byte[]> result) {
-        if (start > end || (end - start + 1) > indexChunk.MessageNumber) {
-            throw new IllegalArgumentException(String.format("ReadChunk start , end, total [%d,%d,%d]", start, end, indexChunk.MessageNumber));
+    public int[] ReadIndex(int indexOffset) {
+        readlock.lock();
+        try {
+            if (this.buf == null) {
+                this.openFile();
+            }
+            this.buf.position(indexOffset);
+            int len = this.buf.getShort();
+            int[] index = new int[len];
+            for (int i = 0; i < len; i++) {
+                index[i] = this.buf.getInt();
+            }
+            return index;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            readlock.unlock();
         }
 
-        this.buf.position(indexChunk.Offset);
-        int index = -1;
-        while (this.buf.hasRemaining()) {
-            index++;
-            short messageLen = this.buf.getShort();
-            if (index < start) {
-                this.buf.position(this.buf.position() + messageLen);
-                continue;
-            }
-
-            if (index > end) {
-                break;
-            }
-
-            byte[] msg = new byte[messageLen];
-            this.buf.get(msg);
-            result.add(msg);
-        }
+        return null;
     }
 }

@@ -6,118 +6,81 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Index {
-    private static final int CHAIN_LENGTH = 200;
-    private static final int CHAIN_SIZE = CHAIN_LENGTH * IndexChunk.CHUNK_SIZE;
-    private final List<byte[]> chunkList = new ArrayList<>();
-    private int currentWritePos = 0;
-    private int mergedPos = -1;
+    private List<IndexChunk> flushedChunks = new ArrayList<>();
+    private IndexChunk currentChunk;
+    private volatile int messageNum = 0;
+    private Bucket bucket;
 
-    public Index() {
-        this.AddNewChain();
+    public Index(Bucket bucket) {
+        this.bucket = bucket;
     }
 
-    public void AddNewChunk(int currentLocalOffset) {
-        if (currentWritePos >= CHAIN_SIZE) {
-            this.AddNewChain();
+    public boolean IndexMessage(int offset) {
+        if (currentChunk == null) {
+            currentChunk = new IndexChunk(messageNum, bucket.CurrentFileName);
         }
 
-        byte[] chain = chunkList.get(chunkList.size() - 1);
-        Bytes.int2bytes(currentLocalOffset, chain, currentWritePos);
-        Bytes.short2bytes((short) 1, chain, currentWritePos + 4);
-        currentWritePos += IndexChunk.CHUNK_SIZE;
+        messageNum++;
+        return currentChunk.IndexMessage(offset);
     }
 
-    public void UpdateChunk() {
-        int currentIndex = (chunkList.size() - 1) * CHAIN_LENGTH + currentWritePos / IndexChunk.CHUNK_SIZE - 1;
-        this.GetAndUpdateChunkNumber(currentIndex, 1, true);
+    public int GetCurChunkSize() {
+        return currentChunk == null ? 0 : currentChunk.GetChunkSize();
     }
 
-    public void Merge(int globalStartOffset) {
-        int totalChunkNumber = (chunkList.size() - 1) * CHAIN_LENGTH + currentWritePos / IndexChunk.CHUNK_SIZE;
-        while (mergedPos + 1 < totalChunkNumber) {
-            mergedPos++;
-            this.GetAndUpdateChunkOffset(mergedPos, globalStartOffset, true);
-        }
-    }
-
-    public Object[] Lookup(int start, int num) {
-        List<IndexChunk> result = new ArrayList<>();
-        int curMessageIndex = -1;
-        int messageSkippedInFisrtChunk = 0;
-
-        int i = 0;
-        int totalChunkNumber = (chunkList.size() - 1) * CHAIN_LENGTH + currentWritePos / IndexChunk.CHUNK_SIZE;
-        for (; i < totalChunkNumber; i++) {
-            int messageNumber = this.GetAndUpdateChunkNumber(i, 0, false);
-            curMessageIndex += messageNumber;
-            if (curMessageIndex >= start) {
-                messageSkippedInFisrtChunk = messageNumber - curMessageIndex + start - 1;
-                break;
+    public void FlushCurrentChunk(ByteBuffer buffer, int offset) {
+        if(currentChunk!=null){
+            currentChunk.DumpIndexAndReleaseResource(buffer, bucket.CurrentFileName, offset);
+            if (currentChunk.MessageNum != 0) {
+                flushedChunks.add(currentChunk);
             }
-        }
 
-        if (i == totalChunkNumber) {
-            // not exist
+            currentChunk = null;
+        }
+    }
+
+    public List<IndexResult> Lookup(int startMsg, int len) {
+        if (flushedChunks.size() == 0) {
             return null;
         }
 
-        int currentChunkOffset = this.GetAndUpdateChunkOffset(i, 0, false);
-        int currentChunkNumber = this.GetAndUpdateChunkNumber(i, 0, false);
-        result.add(new IndexChunk(currentChunkNumber, currentChunkOffset));
-        int readNum = currentChunkNumber - messageSkippedInFisrtChunk;
-        i++;
-        for (; i < totalChunkNumber; i++) {
-            if (readNum >= num) {
-                break;
+        List<IndexResult> result = new ArrayList<>();
+        int chunkIdx = 0, readedMsg = 0, tail = startMsg + len - 1;
+
+        for (; chunkIdx < flushedChunks.size(); chunkIdx++) {
+            IndexChunk chunk = flushedChunks.get(chunkIdx);
+            int chunkTail = chunk.MessageStartIndex + chunk.MessageNum - 1;
+            if (chunk.MessageStartIndex > tail || chunkTail < startMsg) {
+                continue;
             }
 
-            currentChunkOffset = this.GetAndUpdateChunkOffset(i, 0, false);
-            currentChunkNumber = this.GetAndUpdateChunkNumber(i, 0, false);
-            result.add(new IndexChunk(currentChunkNumber, currentChunkOffset));
-            readNum += currentChunkNumber;
+            if (!chunk.IsLoaded()) {
+                this.LoadChunk(chunk);
+            }
+            int offStart = Math.max(chunk.MessageStartIndex, startMsg);
+            int offEnd = Math.min(chunkTail, tail);
+            result.add(chunk.Lookup(offStart, offEnd));
+            readedMsg += (offEnd - offStart + 1);
+            if (readedMsg == len) {
+                break;
+            }
         }
 
-        Object[] aus = new Object[2];
-        aus[0] = messageSkippedInFisrtChunk;
-        aus[1] = result;
-        return aus;
-    }
-
-    private void AddNewChain() {
-        byte[] chain = new byte[CHAIN_SIZE];
-        this.chunkList.add(chain);
-        currentWritePos = 0;
-    }
-
-    private int GetAndUpdateChunkOffset(int index, int increment, boolean isUpdate) {
-        int chain = index / CHAIN_LENGTH;
-        int pos = (index % CHAIN_LENGTH) * IndexChunk.CHUNK_SIZE;
-        int curValue = Bytes.bytes2int(chunkList.get(chain), pos);
-        if (isUpdate) {
-            Bytes.int2bytes(curValue + increment, chunkList.get(chain), pos);
+        if (readedMsg == 0) {
+            result = null;
         }
-        return curValue;
+
+        return result;
     }
 
-    private short GetAndUpdateChunkNumber(int index, int increment, boolean isUpdate) {
-        int chain = index / CHAIN_LENGTH;
-        int pos = (index % CHAIN_LENGTH) * IndexChunk.CHUNK_SIZE + 4;
-        short curValue = Bytes.bytes2Short(chunkList.get(chain), pos);
-        if (isUpdate) {
-            Bytes.short2bytes((short) (curValue + increment), chunkList.get(chain), pos);
-        }
-        return curValue;
+    private synchronized void LoadChunk(IndexChunk chunk) {
+        chunk.LoadIndex(bucket.ReaderMap.get(chunk.IndexFilename));
     }
+
 }
 
-class IndexChunk {
-    // offset(int) + length(short)
-    public static final int CHUNK_SIZE = 6;
-    public int MessageNumber;
-    public int Offset;
-
-    public IndexChunk(int msgNumber, int offset) {
-        this.MessageNumber = msgNumber;
-        this.Offset = offset;
-    }
+class IndexResult {
+    public String fileName;
+    public int[] offsets;
 }
+
