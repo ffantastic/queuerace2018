@@ -96,7 +96,6 @@ public class Bucket {
     private void RotateFile() {
         this.canWrite = false;
         this.FlushRemaining();
-        this.messageWriter.CloseChannel();
         this.CurrentFileName = this.bucketName + "." + (++segmentNo);
         try {
             this.messageWriter.OpenFile(DATA_ROOT_PATH + CurrentFileName);
@@ -108,14 +107,14 @@ public class Bucket {
         canWrite = true;
     }
 
-    public void FlushRemaining() {
+    public void FlushRemaining( ) {
         System.out.println(String.format("%s size is %d, flush remaining", this.CurrentFileName, this.offset / (1024 * 1024)));
         for (Map.Entry<String, Index> entry : this.indexTable.entrySet()) {
             Index index = entry.getValue();
             this.FlushIndex(index);
         }
-
         this.FlushBuffer();
+        this.messageWriter.CloseChannel();
     }
 
 

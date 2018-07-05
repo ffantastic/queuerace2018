@@ -3,7 +3,7 @@ package io.openmessaging;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+
 
 public class Index {
     private List<IndexChunk> flushedChunks = new ArrayList<>();
