@@ -56,8 +56,10 @@ class IndexChunk {
         offsets = null;
     }
 
-    public void LoadIndex(MessageReader indexReader) {
-        offsets = indexReader.ReadIndex(indexOffset);
+    public synchronized void LoadIndex(MessageReader indexReader) {
+        if (!IsLoaded()) {
+            offsets = indexReader.ReadIndex(indexOffset);
+        }
     }
 
 

@@ -29,7 +29,7 @@ public class Index {
     }
 
     public void FlushCurrentChunk(ByteBuffer buffer, int offset) {
-        if(currentChunk!=null){
+        if (currentChunk != null) {
             currentChunk.DumpIndexAndReleaseResource(buffer, bucket.CurrentFileName, offset);
             if (currentChunk.MessageNum != 0) {
                 flushedChunks.add(currentChunk);
@@ -73,7 +73,7 @@ public class Index {
         return result;
     }
 
-    private synchronized void LoadChunk(IndexChunk chunk) {
+    private void LoadChunk(IndexChunk chunk) {
         chunk.LoadIndex(bucket.ReaderMap.get(chunk.IndexFilename));
     }
 
