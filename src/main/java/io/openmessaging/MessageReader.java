@@ -8,6 +8,7 @@ import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class MessageReader {
@@ -16,6 +17,7 @@ public class MessageReader {
     private FileChannel inChannel;
     private final ReentrantLock readlock = new ReentrantLock();
     private final ReentrantLock indexReadLock = new ReentrantLock();
+    private final ByteBufferPool bufferPool = new ByteBufferPool();
     // private final ByteBuffer readBuffer = ByteBuffer.allocateDirect(2 * 1024);
     // private final ByteBuffer indexReadBuffer = ByteBuffer.allocateDirect(2 * 1024);
 
@@ -49,7 +51,7 @@ public class MessageReader {
             }
         }
 
-        ByteBuffer readBuffer = ByteBuffer.allocateDirect(2 * 1024);
+        ByteBuffer readBuffer = bufferPool.Acquire();
         try {
             List<byte[]> result = new ArrayList<>(offsets.length);
             for (int i = 0; i < offsets.length; i++) {
@@ -68,6 +70,8 @@ public class MessageReader {
         } catch (Exception ex) {
             ex.printStackTrace();
             throw new RuntimeException(ex);
+        } finally {
+            bufferPool.Release(readBuffer);
         }
     }
 
@@ -84,7 +88,8 @@ public class MessageReader {
                 readlock.unlock();
             }
         }
-        ByteBuffer indexReadBuffer = ByteBuffer.allocateDirect(2 * 1024);
+
+        ByteBuffer indexReadBuffer = bufferPool.Acquire();
         try {
             this.inChannel.read(indexReadBuffer, indexOffset);
             indexReadBuffer.flip();
@@ -101,6 +106,8 @@ public class MessageReader {
         } catch (Exception ex) {
             ex.printStackTrace();
             throw new RuntimeException(ex);
+        } finally {
+            bufferPool.Release(indexReadBuffer);
         }
     }
 }
