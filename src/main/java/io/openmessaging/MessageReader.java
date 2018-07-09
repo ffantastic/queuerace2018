@@ -14,9 +14,10 @@ public class MessageReader {
     private String fileName;
     private RandomAccessFile raf;
     private FileChannel inChannel;
-    private ByteBuffer buf;
     private final ReentrantLock readlock = new ReentrantLock();
-    private final ReentrantLock readlockGlobal = new ReentrantLock();
+    private final ReentrantLock indexReadLock = new ReentrantLock();
+    private final ByteBuffer readBuffer = ByteBuffer.allocateDirect(2 * 1024);
+    private final ByteBuffer indexReadBuffer = ByteBuffer.allocateDirect(2 * 1024);
 
     public MessageReader(String fileName) {
         this.fileName = fileName;
@@ -32,29 +33,26 @@ public class MessageReader {
                     + e.getMessage();
             System.out.println(errMsg);
         }
-
-        try {
-            this.buf = inChannel.map(FileChannel.MapMode.READ_ONLY, 0, raf.length());
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.out.println("Error mmap file:" + e.getMessage());
-        }
     }
 
     public Collection<byte[]> ReadMessage(int[] offsets) {
         readlock.lock();
         try {
-            if (this.buf == null) {
+            if (this.inChannel == null) {
                 this.openFile();
             }
 
             List<byte[]> result = new ArrayList<>(offsets.length);
-
             for (int i = 0; i < offsets.length; i++) {
-                this.buf.position(offsets[i]);
-                int len = this.buf.getShort();
+                this.inChannel.read(readBuffer, offsets[i]);
+                readBuffer.flip();
+                int len = readBuffer.getShort();
+                if (len > readBuffer.capacity()) {
+                    throw new RuntimeException("MessageReader, message length exceed buffer length " + len);
+                }
                 byte[] data = new byte[len];
-                this.buf.get(data);
+                readBuffer.get(data);
+                readBuffer.clear();
                 result.add(data);
             }
 
@@ -69,22 +67,27 @@ public class MessageReader {
     }
 
     public int[] ReadIndex(int indexOffset) {
-        readlock.lock();
+        indexReadLock.lock();
         try {
-            if (this.buf == null) {
+            if (this.inChannel == null) {
                 this.openFile();
             }
-            this.buf.position(indexOffset);
-            int len = this.buf.getShort();
+            this.inChannel.read(indexReadBuffer, indexOffset);
+            indexReadBuffer.flip();
+            int len = this.indexReadBuffer.getShort();
+            if (len > indexReadBuffer.capacity()) {
+                throw new RuntimeException("MessageReader, message length exceed buffer length " + len);
+            }
             int[] index = new int[len];
             for (int i = 0; i < len; i++) {
-                index[i] = this.buf.getInt();
+                index[i] = this.indexReadBuffer.getInt();
             }
+            indexReadBuffer.clear();
             return index;
         } catch (Exception ex) {
             ex.printStackTrace();
         } finally {
-            readlock.unlock();
+            indexReadLock.unlock();
         }
 
         return null;
