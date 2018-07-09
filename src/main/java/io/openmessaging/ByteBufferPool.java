@@ -7,7 +7,7 @@ import java.util.concurrent.Semaphore;
 
 public class ByteBufferPool {
     // 20 MB for a pool
-    private static final int POOL_SIZE = 2;
+    private static final int POOL_SIZE = 10000;
     private static final int BUF_SIZE = 2 * 1024;
     private Semaphore semaphore = new Semaphore(POOL_SIZE);
     private List<ByteBuffer> pool = new ArrayList<>(POOL_SIZE);
