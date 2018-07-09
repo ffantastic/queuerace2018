@@ -10,7 +10,7 @@ class IndexChunk {
     public String IndexFilename;
     private int[] offsets;
     private int indexOffset;
-    private static final int CHUNK_SIZE = 300;
+    private static final int CHUNK_SIZE = 400;
 
     public IndexChunk(int msgStartPos, String filename) {
         this.Filename = filename;
