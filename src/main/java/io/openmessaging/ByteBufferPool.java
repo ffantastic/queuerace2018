@@ -34,6 +34,12 @@ public class ByteBufferPool {
             pool.add(buffer);
         }
         semaphore.release();
+
+        int permits = semaphore.availablePermits();
+        if (permits < 3) {
+            System.out.println("ByteBufferPool is going to drain, permits: " + permits);
+        }
+
         if (pool.size() > POOL_SIZE) {
             System.out.printf("---------ByteBufferPool exceeding normal size of %d, current size %d.%n", POOL_SIZE, pool.size());
         }
