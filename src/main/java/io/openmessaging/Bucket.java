@@ -29,8 +29,8 @@ public class Bucket {
     public Bucket(int number) throws IOException {
         bucketName = "bucket-" + number;
         Random random = new Random(System.currentTimeMillis());
-        int bufferSizeDelta = random.nextInt(9) * 5;
-        int fileSizeDelta = random.nextInt(10) * 20;
+        int bufferSizeDelta = number * 4;//random.nextInt(9) * 5;
+        int fileSizeDelta = number * 20;//random.nextInt(10) * 20;
         BUFFER_CAPCITY_BYTE = (60 + bufferSizeDelta) * 1024 * 1024;
         FILE_SIZE = (700 + fileSizeDelta) * 1024 * 1024;
         System.out.printf("Initializing Bucket %s, buffer size %d MB, file size %d MB %n", bucketName, 60 + bufferSizeDelta, 700 + fileSizeDelta);
