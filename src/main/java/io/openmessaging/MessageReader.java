@@ -16,8 +16,8 @@ public class MessageReader {
     private FileChannel inChannel;
     private final ReentrantLock readlock = new ReentrantLock();
     private final ReentrantLock indexReadLock = new ReentrantLock();
-    private final ByteBuffer readBuffer = ByteBuffer.allocateDirect(2 * 1024);
-    private final ByteBuffer indexReadBuffer = ByteBuffer.allocateDirect(2 * 1024);
+    // private final ByteBuffer readBuffer = ByteBuffer.allocateDirect(2 * 1024);
+    // private final ByteBuffer indexReadBuffer = ByteBuffer.allocateDirect(2 * 1024);
 
     public MessageReader(String fileName) {
         this.fileName = fileName;
@@ -36,12 +36,21 @@ public class MessageReader {
     }
 
     public Collection<byte[]> ReadMessage(int[] offsets) {
-        readlock.lock();
-        try {
-            if (this.inChannel == null) {
-                this.openFile();
+        if (this.inChannel == null) {
+            readlock.lock();
+            try {
+                if (this.inChannel == null) {
+                    this.openFile();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            } finally {
+                readlock.unlock();
             }
+        }
 
+        ByteBuffer readBuffer = ByteBuffer.allocateDirect(2 * 1024);
+        try {
             List<byte[]> result = new ArrayList<>(offsets.length);
             for (int i = 0; i < offsets.length; i++) {
                 this.inChannel.read(readBuffer, offsets[i]);
@@ -55,41 +64,43 @@ public class MessageReader {
                 readBuffer.clear();
                 result.add(data);
             }
-
             return result;
         } catch (Exception ex) {
             ex.printStackTrace();
-        } finally {
-            readlock.unlock();
+            throw new RuntimeException(ex);
         }
-
-        return null;
     }
 
     public int[] ReadIndex(int indexOffset) {
-        indexReadLock.lock();
-        try {
-            if (this.inChannel == null) {
-                this.openFile();
+        if (this.inChannel == null) {
+            readlock.lock();
+            try {
+                if (this.inChannel == null) {
+                    this.openFile();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            } finally {
+                readlock.unlock();
             }
+        }
+        ByteBuffer indexReadBuffer = ByteBuffer.allocateDirect(2 * 1024);
+        try {
             this.inChannel.read(indexReadBuffer, indexOffset);
             indexReadBuffer.flip();
-            int len = this.indexReadBuffer.getShort();
+            int len = indexReadBuffer.getShort();
             if (len > indexReadBuffer.capacity()) {
                 throw new RuntimeException("MessageReader, message length exceed buffer length " + len);
             }
             int[] index = new int[len];
             for (int i = 0; i < len; i++) {
-                index[i] = this.indexReadBuffer.getInt();
+                index[i] = indexReadBuffer.getInt();
             }
             indexReadBuffer.clear();
             return index;
         } catch (Exception ex) {
             ex.printStackTrace();
-        } finally {
-            indexReadLock.unlock();
+            throw new RuntimeException(ex);
         }
-
-        return null;
     }
 }

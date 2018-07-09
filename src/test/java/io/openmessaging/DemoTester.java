@@ -25,7 +25,7 @@ public class DemoTester {
         //正确性检测的次数
         int checkNum = 1000;
         //消费阶段的总队列数量
-        int checkQueueNum = 100;
+        int checkQueueNum = 10000;
         //发送的线程数量
         int sendTsNum = 10;
         //消费的线程数量
