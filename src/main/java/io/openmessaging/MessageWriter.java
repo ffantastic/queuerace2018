@@ -37,7 +37,7 @@ public class MessageWriter {
     }
 
     public int Write(ByteBuffer byteBuffer) {
-        flushLockGlobal.lock();
+        flushLock.lock();
         int originalPos = pos;
         try {
             byteBuffer.flip();
@@ -48,7 +48,7 @@ public class MessageWriter {
         } catch (Exception ex) {
             ex.printStackTrace();
         } finally {
-            flushLockGlobal.unlock();
+            flushLock.unlock();
         }
         return originalPos;
     }
